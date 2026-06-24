@@ -3183,7 +3183,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
         finally
         {
-            IsRefreshingSessionFilters = false;
+            // 延迟解锁：WPF 异步创建 ListBoxItem 容器并触发 IsSelected 绑定
+            // 时可能引发 SelectionChanged，必须在布局完成后才开启事件处理
+            Application.Current.Dispatcher.BeginInvoke(
+                DispatcherPriority.Loaded,
+                new Action(() => IsRefreshingSessionFilters = false));
         }
 
         if (refreshSessionView)
