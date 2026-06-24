@@ -124,6 +124,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public MainWindowViewModel()
     {
         SessionsView = CollectionViewSource.GetDefaultView(Sessions);
+        SessionsView.SortDescriptions.Add(new SortDescription("Index", ListSortDirection.Ascending));
         SessionsView.Filter = FilterSession;
         RunningProcessesView = CollectionViewSource.GetDefaultView(RunningProcesses);
         RunningProcessesView.Filter = FilterRunningProcess;
