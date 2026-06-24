@@ -2276,6 +2276,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
+        // 拦截状态下不清除当前查找文本，避免打断用户在详情视图中的搜索
+        if (selected.BreakMode > 0)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(selected.SearchColor))
         {
             Detail.RequestSearchText = "";
