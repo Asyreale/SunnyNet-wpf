@@ -892,7 +892,7 @@ public partial class MainWindow : Window
 
     private void OpenRulesCenter(string page)
     {
-        new RulesCenterWindow(_viewModel, page) { Owner = this }.Show();
+        new RulesCenterWindow(_viewModel, page) { Owner = this }.ShowDialog();
     }
 
     private void CertificateGuide_Click(object sender, RoutedEventArgs routedEventArgs)
