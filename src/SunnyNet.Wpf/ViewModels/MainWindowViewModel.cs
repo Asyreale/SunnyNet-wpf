@@ -2564,6 +2564,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
+        // 如果用户正在查看任意数据包，不自动跳到新的拦截包，避免打断查看
+        if (SelectedSession is not null)
+        {
+            return;
+        }
+
         SelectedSession = entry;
         ScrollToEntryRequested?.Invoke(entry);
     }
@@ -3048,7 +3054,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _sessionMap[entry.Theology] = entry;
         NotifyFavoriteSummaryChanged();
 
-        if (AutoScroll)
+        if (AutoScroll && SelectedSession is null)
         {
             ScrollToEntryRequested?.Invoke(entry);
         }
