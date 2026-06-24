@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Win32;
+using SunnyNet.Wpf.Controls;
 using SunnyNet.Wpf.Models;
 using SunnyNet.Wpf.Services;
 using SunnyNet.Wpf.ViewModels;
@@ -256,12 +257,37 @@ public partial class MainWindow : Window
             }
 
             await _viewModel.DisableSystemProxyOnExitAsync();
+        }
+        catch
+        {
+            // 即便后端异常也尝试直接清注册表
+            BackupClearSystemProxy();
+        }
+
+        try
+        {
             await _viewModel.DisposeAsync();
+        }
+        catch
+        {
         }
         finally
         {
             _isCloseConfirmed = true;
             Close();
+        }
+    }
+
+    private static void BackupClearSystemProxy()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Internet Settings", writable: true);
+            key?.SetValue("ProxyEnable", 0, Microsoft.Win32.RegistryValueKind.DWord);
+        }
+        catch
+        {
         }
     }
 
@@ -1586,6 +1612,24 @@ public partial class MainWindow : Window
         row.Focus();
     }
 
+    private void SessionsGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var view = _viewModel.SessionsView;
+            using (view.DeferRefresh())
+            {
+                view.SortDescriptions.Clear();
+                view.SortDescriptions.Add(new SortDescription(e.Column.SortMemberPath, e.Column.SortDirection ?? ListSortDirection.Ascending));
+                if (!string.Equals(e.Column.SortMemberPath, "Index", StringComparison.Ordinal))
+                {
+                    view.SortDescriptions.Add(new SortDescription("Index", ListSortDirection.Ascending));
+                }
+            }
+        }), DispatcherPriority.Background);
+    }
+
     private void SessionsGridContextMenu_Opened(object sender, RoutedEventArgs routedEventArgs)
     {
         CaptureEntry[] entries = GetSelectedSessionEntries();
@@ -1916,6 +1960,31 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void MultiResendSelectedSessions_Click(object sender, RoutedEventArgs routedEventArgs)
+    {
+        CaptureEntry[] entries = GetSelectedSessionEntries();
+        if (entries.Length == 0)
+        {
+            return;
+        }
+
+        RepeatCountWindow dialog = new() { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.RepeatCount < 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await _viewModel.MultiResendSessionEntriesAsync(entries, dialog.RepeatCount);
+            ViewModel_NotificationRequested("提示", $"已重放 {dialog.RepeatCount} 次。");
+        }
+        catch (Exception exception)
+        {
+            ViewModel_NotificationRequested("重放失败", exception.Message);
+        }
+    }
+
     private void ResendFromBuilder_Click(object sender, RoutedEventArgs routedEventArgs)
     {
         CaptureEntry? entry = GetSelectedSessionEntries().FirstOrDefault();
@@ -1951,6 +2020,30 @@ public partial class MainWindow : Window
     private void AutoScrollToolbarButton_Click(object sender, RoutedEventArgs routedEventArgs)
     {
         SetAutoScrollEnabled(AutoScrollToolbarButton.IsChecked == true);
+    }
+
+    private void SyncJsonEditBeforeRelease_Click(object sender, RoutedEventArgs e)
+    {
+        // 放行前将 JSON 视图的编辑内容同步回 EditableResponseBody
+        var jsonView = FindName("ResponseJsonTab") as TabItem;
+        if (jsonView?.Content is JsonTreeViewControl control && control.IsEditable)
+        {
+            string editedText = control.GetRawViewText();
+            if (!string.IsNullOrWhiteSpace(editedText))
+            {
+                control.EditableBodyText = editedText;
+            }
+        }
+
+        // 放行前将原始响应视图的编辑内容同步回 EditableResponseRaw
+        if (ResponseRawViewer is not null && !ResponseRawViewer.IsReadOnly)
+        {
+            string editedText = ResponseRawViewer.GetDocumentText();
+            if (!string.IsNullOrWhiteSpace(editedText))
+            {
+                _viewModel.Detail.EditableResponseRaw = editedText;
+            }
+        }
     }
 
     private async void DeleteSelectedSessions_Click(object sender, RoutedEventArgs routedEventArgs)
