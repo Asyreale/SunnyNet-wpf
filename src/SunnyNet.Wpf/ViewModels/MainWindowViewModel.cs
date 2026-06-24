@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text.Encodings.Web;
+using System.Text.RegularExpressions;
 using System.Windows.Data;
 using System.Text;
 using System.Text.Json;
@@ -68,6 +70,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true
+    };
+
+    private static readonly JsonSerializerOptions _jsonViewOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
     private static readonly HttpClient McpHttpClient = new()
@@ -4637,7 +4645,19 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return $"二进制数据 {bytes.Length} bytes\r\n{preview}";
         }
 
-        return Encoding.UTF8.GetString(bytes);
+        return DecodeUnicodeEscapes(Encoding.UTF8.GetString(bytes));
+    }
+
+    private static string DecodeUnicodeEscapes(string text)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains(@"\u"))
+            return text;
+
+        return Regex.Replace(text, @"\\u([0-9a-fA-F]{4})", match =>
+        {
+            int code = int.Parse(match.Groups[1].Value, NumberStyles.HexNumber);
+            return char.ConvertFromUtf32(code);
+        });
     }
 
     private static string BytesToPreviewText(byte[] bytes)
@@ -4791,7 +4811,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         try
         {
             using JsonDocument document = JsonDocument.Parse(text);
-            return JsonSerializer.Serialize(document.RootElement, JsonOptions);
+            return JsonSerializer.Serialize(document.RootElement, _jsonViewOptions);
         }
         catch
         {
