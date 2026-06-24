@@ -205,6 +205,30 @@ public partial class MainWindow : Window
         await _viewModel.InitializeAsync();
         UpdateFooterState();
         _ = CheckUpdatesOnStartupAsync();
+        HookSessionsGridScroll();
+    }
+
+    private void HookSessionsGridScroll()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (FindVisualChildren<ScrollViewer>(SessionsGrid).FirstOrDefault() is { } sv)
+            {
+                sv.ScrollChanged += SessionsScrollViewer_ScrollChanged;
+            }
+        }));
+    }
+
+    private void SessionsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_isProgrammaticScroll)
+            return;
+
+        if (sender is not ScrollViewer sv)
+            return;
+
+        _viewModel.IsUserAtSessionListBottom =
+            sv.ScrollableHeight > 0 && sv.VerticalOffset >= sv.ScrollableHeight - 5;
     }
 
     private async Task CheckUpdatesOnStartupAsync()
@@ -633,9 +657,13 @@ public partial class MainWindow : Window
         return brush;
     }
 
+    private bool _isProgrammaticScroll;
+
     private void ViewModel_ScrollToEntryRequested(CaptureEntry entry)
     {
+        _isProgrammaticScroll = true;
         SessionsGrid.ScrollIntoView(entry);
+        _isProgrammaticScroll = false;
     }
 
     private enum AlertKind

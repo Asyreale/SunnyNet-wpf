@@ -220,6 +220,9 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         set => SetProperty(ref _autoScroll, value);
     }
 
+    /// <summary>用户是否已滚动到会话列表底部。为 true 时新数据包会自动跟随。</summary>
+    public bool IsUserAtSessionListBottom { get; set; }
+
     public bool IsCapturing
     {
         get => _isCapturing;
@@ -3062,7 +3065,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _sessionMap[entry.Theology] = entry;
         NotifyFavoriteSummaryChanged();
 
-        if (AutoScroll && SelectedSession is null)
+        if (AutoScroll && IsUserAtSessionListBottom)
         {
             ScrollToEntryRequested?.Invoke(entry);
         }
@@ -3206,7 +3209,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             // 延迟解锁：WPF 异步创建 ListBoxItem 容器并触发 IsSelected 绑定
             // 时可能引发 SelectionChanged，必须在布局完成后才开启事件处理
             Application.Current.Dispatcher.BeginInvoke(
-                DispatcherPriority.Loaded,
+                DispatcherPriority.Background,
                 new Action(() => IsRefreshingSessionFilters = false));
         }
 
