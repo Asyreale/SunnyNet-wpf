@@ -101,6 +101,12 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private int _breakpointMode;
     private int _selectedSessionLoadVersion;
     private int _captureEventBypassDepth;
+    /// <summary>
+    /// 重放放行截止时间(UTC)。隐藏捕获时，后端只会推送重放产生的会话事件，
+    /// 因此在该时间窗口内放行事件，可让重放数据包显示出来，而不会混入普通流量。
+    /// </summary>
+    private DateTime _replayBypassUntilUtc = DateTime.MinValue;
+    private const int ReplayBypassSeconds = 120;
     private bool _processDriverLoaded;
     private bool _captureAllProcesses;
     private readonly HashSet<int> _activeProcessPids = new();
@@ -641,7 +647,25 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
+        ExtendReplayBypass();
         await _backend.InvokeAsync("重发请求", new { Data = theologyIds, Mode = mode });
+    }
+
+    public async Task MultiResendSessionEntriesAsync(CaptureEntry[] entries, int repeatCount)
+    {
+        int[] theologyIds = GetTheologyIds(entries);
+        if (theologyIds.Length == 0)
+        {
+            return;
+        }
+
+        ExtendReplayBypass();
+        for (int i = 0; i < repeatCount; i++)
+        {
+            // 多次重放时持续续期窗口，确保后续响应到达时仍处于放行期内。
+            ExtendReplayBypass();
+            await _backend.InvokeAsync("重发请求", new { Data = theologyIds, Mode = 3 });
+        }
     }
 
     public async Task ResendSessionEntriesWithInterceptEditorAsync(IEnumerable<CaptureEntry> entries, int mode)
@@ -692,6 +716,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         TaskCompletionSource<CaptureEntry> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         PendingInterceptReplay pendingReplay = new(entry, mode, completion);
         _pendingInterceptReplays.Add(pendingReplay);
+        ExtendReplayBypass();
         await _backend.InvokeAsync("重发请求", new { Data = new[] { entry.Theology }, Mode = mode });
 
         CaptureEntry interceptedEntry;
@@ -1978,6 +2003,25 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
     }
 
+    private void SyncIeProxyState()
+    {
+        try
+        {
+            // 读取 Windows 系统代理实际状态
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Internet Settings");
+            if (key?.GetValue("ProxyEnable") is int proxyEnable && proxyEnable == 1)
+            {
+                IeProxyEnabled = true;
+                StatusLeft = "已设置系统IE代理";
+            }
+        }
+        catch
+        {
+            // 读取失败保持默认
+        }
+    }
+
     public async Task DisableSystemProxyOnExitAsync()
     {
         if (_proxyClearedOnExit)
@@ -2050,6 +2094,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
+        ExtendReplayBypass();
         await _backend.InvokeAsync("重发请求", new { Data = new[] { SelectedSession.Theology }, Mode = mode });
     }
 
@@ -2319,7 +2364,20 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private bool ShouldSuppressCaptureEvent()
     {
-        return !IsCapturing && _captureEventBypassDepth <= 0;
+        // 隐藏捕获时，仅在既没有文件打开旁路、也未处于重放放行窗口内时才抑制事件。
+        // 后端在隐藏捕获状态下只会推送重放产生的会话，所以放行窗口内不会混入普通流量。
+        return !IsCapturing
+            && _captureEventBypassDepth <= 0
+            && DateTime.UtcNow >= _replayBypassUntilUtc;
+    }
+
+    /// <summary>
+    /// 触发/续期重放放行窗口。在调用后端“重发请求”前调用，
+    /// 使隐藏捕获状态下重放产生的会话仍能显示在列表中。
+    /// </summary>
+    private void ExtendReplayBypass()
+    {
+        _replayBypassUntilUtc = DateTime.UtcNow.AddSeconds(ReplayBypassSeconds);
     }
 
     private void HandleStartState(JsonElement args)
