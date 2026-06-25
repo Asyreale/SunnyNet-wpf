@@ -78,7 +78,11 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static readonly HttpClient McpHttpClient = new()
+    private static readonly HttpClient McpHttpClient = new(new HttpClientHandler
+    {
+        Proxy = null,
+        UseProxy = false
+    })
     {
         Timeout = TimeSpan.FromSeconds(15)
     };
