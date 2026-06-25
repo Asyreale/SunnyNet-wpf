@@ -66,8 +66,8 @@ public sealed class HttpSyntaxTextBox : RichTextBox
 
     public HttpSyntaxTextBox()
     {
-        IsReadOnly = true;
-        IsReadOnlyCaretVisible = false;
+        SetCurrentValue(IsReadOnlyProperty, true);
+        SetCurrentValue(IsReadOnlyCaretVisibleProperty, false);
         BorderThickness = new Thickness(0);
         Background = Brushes.Transparent;
         Foreground = TextBrush;
