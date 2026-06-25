@@ -726,6 +726,9 @@ public partial class MainWindow : Window
         {
             _mcpServer ??= new SunnyNetCompatibleMcpServer(_viewModel);
             _mcpServer.Start();
+            _viewModel.Mcp.ServerRunning = true;
+            _viewModel.Mcp.ServerStatusText = "内置服务运行中";
+            _viewModel.Mcp.LastError = "";
         }
         catch (Exception exception)
         {
