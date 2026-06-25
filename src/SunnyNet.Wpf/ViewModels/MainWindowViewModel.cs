@@ -80,7 +80,7 @@ public sealed class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private static readonly HttpClient McpHttpClient = new()
     {
-        Timeout = TimeSpan.FromSeconds(5)
+        Timeout = TimeSpan.FromSeconds(15)
     };
 
     private readonly GoBackendClient _backend = new();
